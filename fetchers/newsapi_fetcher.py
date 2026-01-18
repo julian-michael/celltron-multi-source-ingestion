@@ -7,15 +7,14 @@ from dotenv import load_dotenv
 import requests
 import time
 import sys
+
 # Load env variables
 load_dotenv()
 API_KEY = os.getenv("NEWS_API_KEY")
 TIMEOUT_SECONDS = 30
 MAX_RETRIES = 3
 
-
-OUTPUT_DIR = "/home/julian/Vsocde/python_/celltron-multi-source-ingestion/multi-source-ingestion/output"
-OUTPUT_FILE = os.path.join(OUTPUT_DIR, "news_sources.json")
+# Remove the OUTPUT_DIR and OUTPUT_FILE constants - let the main script handle saving
 
 class NewsAPIHandler:
     def __init__(self, api_key: str):
@@ -30,28 +29,28 @@ class NewsAPIHandler:
         for attempt in range(MAX_RETRIES):
             try:
                 return api_call(*args, **kwargs)
-
             except requests.exceptions.Timeout:
                 print(f"⚠️ Timeout (attempt {attempt + 1}/{MAX_RETRIES})")
                 time.sleep(2 ** attempt)
-
             except requests.exceptions.ConnectionError as e:
                 print(f"⚠️ Network error: {e}")
                 time.sleep(2 ** attempt)
-
             except Exception as e:
                 print(f"❌ Request error: {e}")
                 break
-
-        return None  # 👈 fail-soft
+        return None
 
     def fetch_newsapi_sources(self):
+        """
+        Fetch news sources from NewsAPI and return as a list.
+        Does NOT save to file directly - returns data for main script to handle.
+        """
         if not self.newsapi:
+            print("❌ NewsAPI client not initialized")
             return []
 
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-
         try:
+            # Make API call with retry logic
             response = self._make_api_call_with_retry(self.newsapi.get_sources)
 
             if not response or "sources" not in response:
@@ -69,26 +68,40 @@ class NewsAPIHandler:
                     "category": source.get("category"),
                     "language": source.get("language"),
                     "country": source.get("country"),
-                    "source": "newsapi",
-                    "fetched_at": datetime.utcnow().isoformat() + "Z"
+                    "_source": "newsapi",  # Changed from "source" to "_source" to match main script
+                    "_timestamp": datetime.utcnow().isoformat() + "Z",
+                    "_id": f"newsapi_{source.get('id', 'unknown')}_{int(time.time())}"
                 })
 
-            with open(OUTPUT_FILE, "w") as f:
-                json.dump(sources_list, f, indent=2)
-
-            print(f"✅ Saved {len(sources_list)} sources")
+            print(f"✅ Retrieved {len(sources_list)} sources from NewsAPI")
             return sources_list
 
         except NewsAPIException as e:
             print(f"❌ NewsAPI error: {e}")
             return []
-
         except Exception as e:
             print(f"❌ Unexpected error: {e}")
             return []
 
+    # OPTIONAL: Keep a method for direct file saving if needed elsewhere
+    def fetch_and_save_sources(self, output_file: str):
        
-
-
-
-
+        sources = self.fetch_newsapi_sources()
+        
+        if not sources:
+            return False
+        
+        try:
+            # Create directory if it doesn't exist
+            output_dir = os.path.dirname(output_file)
+            if output_dir:
+                os.makedirs(output_dir, exist_ok=True)
+            
+            with open(output_file, "w") as f:
+                json.dump(sources, f, indent=2)
+            
+            print(f"✅ Saved {len(sources)} sources to {output_file}")
+            return True
+        except Exception as e:
+            print(f"❌ Error saving to file: {e}")
+            return False

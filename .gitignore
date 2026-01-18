@@ -12,3 +12,5 @@ venv/
 # Test cache
 .pytest_cache/
 
+
+.csv_data/
