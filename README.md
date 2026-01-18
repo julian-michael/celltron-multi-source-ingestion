@@ -1,4 +1,4 @@
-# celltron-multi-source-ingestion
+
 # Multi-Source Data Ingestion System
 
 **Celltron Intelligence – Take Home Assignment (Option A)**
